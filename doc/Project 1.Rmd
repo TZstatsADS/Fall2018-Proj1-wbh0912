@@ -3,7 +3,7 @@ title: "Project 1: What makes people happy?"
 output: html_notebook
 ---
 
-```{r}
+```{r, warning = FALSE}
 # Step 0-1: Load all required packages
 library(tidyverse)
 library(tidytext)
@@ -42,7 +42,7 @@ processed_moments <- processed_moments %>%
 ```
 
 \newline
-![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/what-makes-you-happy.jpg)
+![image](../figs/what-makes-you-happy.jpg)
 
 Although we need some bad days to appreciate the good ones, we want to spend our days in the best mood possible  since the number of day we get to spend is finite. What makes you happy? I am sure that in your collection of happy moments, some went back to your childhood, and some may just happened hours ago. Let's take a close look at the nature behind momentary happiness and lasting joy.
 
@@ -260,8 +260,8 @@ Based on what we find in the processed `HappyDB` dataset, we know a few things a
 * Momentary happiness tend to be daily activities such as exercise and free time activities; sustained happiness mostly reflects meaningful moments and life events spent with loved ones.
 
 * Friend, video game, and ice cream will make you happy! As a gamer, I can't agree more.
-![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/video-game-friend-group-1024x682.jpg)
-![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/ice-cream-boston.jpg)
+![image](../figs/video-game-friend-group-1024x682.jpg)
+![image](../figs/ice-cream-boston.jpg)
 
 
 
