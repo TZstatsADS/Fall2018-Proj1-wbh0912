@@ -31,7 +31,10 @@ library(scales)
 library(wordcloud2)
 library(gridExtra)
 library(ngram)
-library(shiny) 
+library(shiny)
+# The two packages below are added so that the output of shinyApp will function properly.
+library(igraph)
+library(ggraph)
 ```
 
 ### Step 1 - Load the processed text data along with demographic information on contributors

@@ -1,0 +1,278 @@
+---
+title: "Project 1: What makes people happy?"
+output: html_notebook
+---
+
+```{r}
+# Step 0-1: Load all required packages
+library(tidyverse)
+library(tidytext)
+library(ngram)
+library(ggplot2)
+library(tokenizers)
+
+# Step 0-2: Load and clean the processed dataset
+processed_moments <- read.csv("~/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/output/processed_moments.csv")
+
+urlfile<-'https://raw.githubusercontent.com/rit-public/HappyDB/master/happydb/data/demographic.csv'
+demo_data <- read.csv(urlfile)
+
+processed_moments <- processed_moments %>%
+  inner_join(demo_data, by = "wid") %>%
+  select(wid,
+         original_hm,
+         cleaned_hm,
+         gender, 
+         marital, 
+         parenthood,
+         reflection_period,
+         age, 
+         country, 
+         ground_truth_category,
+         predicted_category,
+         text) %>%
+  mutate(text = as.vector(text)) %>%
+  filter(gender %in% c("m", "f")) %>%
+  filter(marital %in% c("single", "married")) %>%
+  filter(parenthood %in% c("n", "y")) %>%
+  filter(reflection_period %in% c("24h", "3m")) %>%
+  mutate(original_hm = as.vector(original_hm)) %>%
+  mutate(cleaned_hm = as.vector(cleaned_hm)) %>%
+  mutate(age = as.vector(age))
+```
+
+\newline
+![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/what-makes-you-happy.jpg)
+
+Although we need some bad days to appreciate the good ones, we want to spend our days in the best mood possible  since the number of day we get to spend is finite. What makes you happy? I am sure that in your collection of happy moments, some went back to your childhood, and some may just happened hours ago. Let's take a close look at the nature behind momentary happiness and lasting joy.
+
+# A quick look of our data
+```{r}
+# Barplot between momentary and sustained
+ggplot(data = processed_moments, aes(x = reflection_period)) +
+  geom_bar(width = 0.5) +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.3)
+```
+
+The dataset I worked on came from the dataset `HappyDB`. `24h` and `3m`, the values of the variable `reflection_period`, represent momentary and sustained happiness. The bar chart shows that the proportion ratio between momentary and sustained happiness is about 1:1.
+
+## Proportion distribution based on demographic information
+### Male vs Female
+```{r}
+# Create label name
+gl <- c(f = "Female", m = "Male")
+
+ggplot(data = processed_moments, aes(x = reflection_period, fill = reflection_period)) +
+  geom_bar(stat = "count", width = 1) +
+  coord_polar(start = 0) +
+  facet_grid(facets = . ~ gender, labeller = labeller(gender = gl)) +
+  scale_fill_discrete(name = "Reflection Period",
+                    breaks = c("24h", "3m"),
+                    labels = c("24 hours", "3 months")) +
+  theme_minimal() +
+  theme(axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        panel.grid = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "Momentary and Susbtained Happiness in Different Gender Group")
+```
+
+There is no evidence suggests that either gender prefers momentary or lasting happiness. We can take gender out of our "bucket list".
+
+### Parenthood
+```{r}
+par(mfrow = c(1, 3))
+pie(table(processed_moments$reflection_period[processed_moments$parenthood == "y"]), col = c("cadetblue2", "cyan4"), xlab = "Being a parent", labels = "")
+pie(table(processed_moments$reflection_period[processed_moments$parenthood == "n"]), col = c("cadetblue2", "cyan4"), xlab = "Not being a parent", labels = "")
+plot.new()
+legend("right", legend = c("24 hours", "3 months"), fill = c("cadetblue2", "cyan4"), title = "Reflection Period")
+```
+
+The result based on parenthood surprises me. I assumed that having kids will provide a lot more lasting joy for parents, but the pie charts suggest that having a kid doesn't make it easier to obtain long-term happy memory. In fact, the proportion of momentary happiness in Parents' group is slightly higher.
+
+### Age group
+
+Let's take a look whether momentary and sustained happiness are distributed evenly among different age groups.
+
+```{r}
+# Create age tags
+processed_moments$age_group[processed_moments$age >= 65 & processed_moments$age != "prefer not to say"] <- "65+"
+processed_moments$age_group[processed_moments$age < 65 & processed_moments$age >= 45] <- "45-64"
+processed_moments$age_group[processed_moments$age < 45 & processed_moments$age >= 25] <- "25-44"
+processed_moments$age_group[processed_moments$age < 25 & processed_moments$age != ""] <- "25-"
+
+ggplot(data = processed_moments[-which(is.na(processed_moments$age_group)), ], aes(age_group)) +
+  geom_bar(aes(fill = reflection_period)) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set2",
+                    name = "Reflection Period",
+                    breaks = c("24h", "3m"),
+                    labels = c("24 hours", "3 months")) +
+  xlab("Age groups")
+```
+
+According to the stacked bar plot, age doesn't seem to have a heavy influence on how long happiness lasts.
+
+# How people describe happiness
+```{r}
+# Create variable "Sentence Length" for the dataset  
+processed_moments$SL <- unlist(lapply(processed_moments$cleaned_hm, wordcount))
+
+# Create seperate datasets for momentary and sustained happiness
+mh <- processed_moments[processed_moments$reflection_period == "24h", ]
+sh <- processed_moments[processed_moments$reflection_period == "3m", ]
+```
+
+In this part, I want to explore people's language habits for momentary and sustained happiness by analyzing the length of their description.
+
+## Statement length
+```{r, warning = FALSE}
+rl <- c("24h" = "24 hours", "3m" = "3 months")
+
+qplot(SL, data = processed_moments, geom = "histogram", xlim = c(0, 30), binwidth = 1, xlab = "Statement Length")+
+  facet_wrap(~reflection_period, labeller = labeller(reflection_period = rl))
+```
+
+The length of statements ranges from 2 to 1155. Let's focus on the observations with statement length from 0 to 30 which contains the majority of the distribution. The histograms look extremely alike; how people describe their happiness doesn't seem to differ. However, if we look closely, we can find that for statement length below 10, the number of observations reflected within 24 hours is a little higher than the ones reflected within 3 months, yet the total observations of momentary happiness is less. It is possible that people tend to throw in one or two words more when they describe happy moments months ago.
+
+# Source of happiness and its effect on duration
+## Happiness in different categories
+```{r}
+ggplot(data = processed_moments, aes(predicted_category)) +
+  geom_bar(aes(fill = reflection_period)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(title = "Momentary and Sustained Happiness in Different Categories") +
+  scale_fill_brewer(palette = "Set1", 
+                      name = "Reflection Period", 
+                      breaks = c("24h", "3m"), 
+                      labels = c("24 hours", "3 months")) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+```
+
+We will zoom in on the ones we can't really tell.
+
+```{r}
+ggplot(data = processed_moments[processed_moments$predicted_category == "exercise"| processed_moments$predicted_category == "nature"| processed_moments$predicted_category == "leisure", ], aes(predicted_category)) +
+  geom_bar(aes(fill = reflection_period)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_brewer(palette = "Set1", 
+                      name = "Reflection Period", 
+                      breaks = c("24h", "3m"), 
+                      labels = c("24 hours", "3 months")) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+```
+
+From the stacked bar plot, we see that happiness from achievement and bonding are mostly sustained while happy moments of exercise, leisure, and nature don't last too long. This result makes sense. Achievement is not casual; it improves self image so that the happiness lasts. In `bonding` category, people develop their relationships with loved ones, and such joy from these life events can flow continuously. On the other hand, exercise, leisure, and being intimate with nature are able to occur daily; not being special grants them momentary happiness.
+
+Note that although `enjoy_the_moment` have more momentary happiness than sustained ones, we can't get further information due to its mixed nature. Those are random moments that cannot be put in other categories such as having a good meal and finding a new song. My interpretation result on it is that they are random moments, not meaningful events. Thus, they tend to lead to momentary happiness more than sustained one.
+
+## Most frequent words and phrases
+```{r}
+# single word
+bowm <- mh %>%
+  unnest_tokens(word, text)
+wcm <- count(bowm, word, sort = T)
+wcm$word <- factor(wcm$word, levels = wcm$word[order(wcm$n)])
+
+m15 <- ggplot(data = wcm[1:15, ], aes(x = word, y = n)) +
+  geom_bar(stat = "identity", fill = "red") +
+  coord_flip() +
+  labs(title = "Momentary") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+bows <- unnest_tokens(sh, word, text)
+wcs <- count(bows, word, sort = T)
+wcs$word <- factor(wcs$word, levels = wcs$word[order(wcs$n)])
+
+s15 <- ggplot(data = wcs[1:15, ], aes(x = word, y = n)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Sustained") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+grid.arrange(m15, s15, nrow=1)
+```
+
+By looking at the top 15 frequent words in both types of happiness, there are a few notable things. In momentary happiness group, the word "watched" may refers to watching a movie or watching TV; these are casual activities, and they are more likely to generate momentary happiness. It is the same for "played" and "game". The word "morning" is likely to be a representative example of `enjoy_the_moment`.
+
+In sustained happiness group, we see that the ranking of "family" goes up since you will have more bonding moments with your family. There are also words like "birthday" and "son" that couldn't make it into top 15 in momentary happiness group. The word "finally" and "job" are likely relative to achievement. In addition, the ranking of "played" is lower here since leisure for playing video game tend to create momentary happiness.
+
+Also, "friend" is the most frequent word for both groups; it is true that you can have countless good times with friends.
+
+Now, let's look the top two-word phrases in both groups.
+
+```{r}
+# 2-word phrase
+mh$count <- as.vector(sapply(mh$text, wordcount))
+sh$count <- as.vector(sapply(sh$text, wordcount))
+
+mh.bg <- mh %>%
+  filter(count != 1) %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+mh.bgc <- mh.bg %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  count(word1, word2, sort = TRUE)
+mh.bgc$phrase <- paste(mh.bgc$word1, mh.bgc$word2)
+mh.bgc$phrase <- factor(mh.bgc$phrase, levels = mh.bgc$phrase[order(mh.bgc$n)])
+
+mph <- ggplot(data = mh.bgc[1:15, ], aes(x = phrase, y = n)) +
+  geom_bar(stat = "identity", fill = "red") +
+  coord_flip() +
+  labs(title = "Momentary") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        )
+
+sh.bg <- sh %>%
+  filter(count != 1) %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+sh.bgc <- sh.bg %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  count(word1, word2, sort = TRUE)
+sh.bgc$phrase <- paste(sh.bgc$word1, sh.bgc$word2)
+sh.bgc$phrase <- factor(sh.bgc$phrase, levels = sh.bgc$phrase[order(sh.bgc$n)])
+
+sph <- ggplot(data = sh.bgc[1:15, ], aes(x = phrase, y = n)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Sustained") +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+grid.arrange(mph, sph, nrow = 1)
+```
+
+With 2 words connected, the phrase is able to provide more information. Now we have less general information which is not very informative such as the word "day", "time", and "moment". Momentary happiness focuses on activities such as playing video games, watching TV, watching movies, and reading books while sustained happiness focuses on meaningful events like mother's day, birthday party, and getting a vehicle. It's Worth mentioning that "friend" and "family" appear to be more essential in sustained happiness group after using bigram counts.
+
+Moreover, ice cream seems to play an important role in both momentary and sustained happiness. I only assume it makes people happy for a short while.
+
+# Summary
+Based on what we find in the processed `HappyDB` dataset, we know a few things about what makes people happy:
+
+* Momentary and sustained happiness are evenly distributed regardless of people's demographic background.
+
+* Momentary happiness tend to be daily activities such as exercise and free time activities; sustained happiness mostly reflects meaningful moments and life events spent with loved ones.
+
+* Friend, video game, and ice cream will make you happy! As a gamer, I can't agree more.
+![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/video-game-friend-group-1024x682.jpg)
+![Alt text](/Users/brett/Documents/CU/5243 ADS/Project 1/Fall2018-Proj1-wbh0912/figs/ice-cream-boston.jpg)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
