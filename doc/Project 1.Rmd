@@ -1,5 +1,5 @@
 ---
-title: "Project 1: What makes people happy?"
+title: "Project 1: Are you happy momentarily or continuously?"
 output: html_notebook
 ---
 
